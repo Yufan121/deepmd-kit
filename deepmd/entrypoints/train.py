@@ -193,7 +193,7 @@ def _do_work(jdata: Dict[str, Any], run_opt: RunOptions, is_compress: bool = Fal
     origin_type_map = jdata["model"].get("origin_type_map", None)
     if origin_type_map is not None and not origin_type_map:  # get the type_map from data if not provided
         origin_type_map = get_data(jdata["training"]["training_data"], rcut, None, modifier).get_type_map()
-    model.build(train_data, stop_batch, origin_type_map=origin_type_map)
+    model.build(train_data, stop_batch, origin_type_map=origin_type_map) # build all parts of NN
 
     if not is_compress:
         # train the model with the provided systems in a cyclic way
@@ -216,7 +216,7 @@ def get_data(jdata: Dict[str, Any], rcut, type_map, modifier, multi_task_mode=Fa
     help_msg = 'Please check your setting for data systems'
     # check length of systems
     if len(systems) == 0:
-        msg = 'cannot find valid a data system'
+        msg = 'cannot find a valid data system'
         log.fatal(msg)
         raise IOError(msg, help_msg)
     # rougly check all items in systems are valid

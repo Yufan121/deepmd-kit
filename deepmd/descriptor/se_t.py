@@ -592,7 +592,7 @@ class DescrptSeT (DescrptSe):
                     if self.compress:
                         net = 'filter_' + str(type_i) + '_net_' + str(type_j)
                         info = [self.lower[net], self.upper[net], self.upper[net] * self.table_config[0], self.table_config[1], self.table_config[2], self.table_config[3]]
-                        res_ij = op_module.tabulate_fusion_se_t(tf.cast(self.table.data[net], self.filter_precision), info, ebd_env_ij, env_ij, last_layer_size = outputs_size[-1]) 
+                        res_ij = op_module.tabulate_fusion_se_t(tf.cast(self.table.data[net], self.filter_precision), info, ebd_env_ij, env_ij, last_layer_size = outputs_size[-1])
                     else:
                         # with (natom x nei_type_i x nei_type_j) x out_size
                         ebd_env_ij = embedding_net(ebd_env_ij, 

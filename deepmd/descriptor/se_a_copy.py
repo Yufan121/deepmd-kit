@@ -158,12 +158,10 @@ class DescrptSeACopy (DescrptSe):
         # numb of neighbors and numb of descrptors
         self.nnei_a = np.cumsum(self.sel_a)[-1]
         self.nnei_r = np.cumsum(self.sel_r)[-1]
-        print("self.nnei_a"+str(self.nnei_a))
-        print("self.nnei_r"+str(self.nnei_r))
         self.nnei = self.nnei_a + self.nnei_r
         self.ndescrpt_a = self.nnei_a * 4
         self.ndescrpt_r = self.nnei_r * 1
-        self.ndescrpt = self.ndescrpt_a + self.ndescrpt_r
+        self.ndescrpt = self.ndescrpt_a + self.ndescrpt_r # self.ndescrpt = n_nei*4 (x,y,z,s)
         self.useBN = False
         self.dstd = None
         self.davg = None
@@ -172,6 +170,8 @@ class DescrptSeACopy (DescrptSe):
         self.mixed_prec = None
         self.place_holders = {}
         self.nei_type = np.repeat(np.arange(self.ntypes), self.sel_a)  # like a mask
+        print("self.ndescrpt"+str(self.ndescrpt))
+        # print("self.nnei_r"+str(self.nnei_r))
 
         avg_zero = np.zeros([self.ntypes,self.ndescrpt]).astype(GLOBAL_NP_FLOAT_PRECISION)
         std_ones = np.ones ([self.ntypes,self.ndescrpt]).astype(GLOBAL_NP_FLOAT_PRECISION)
@@ -449,6 +449,7 @@ class DescrptSeACopy (DescrptSe):
         descriptor
                 The output descriptor
         """
+        print("natoms" + str(natoms))
         davg = self.davg
         dstd = self.dstd
         if nvnmd_cfg.enable and nvnmd_cfg.restore_descriptor: davg, dstd = build_davg_dstd()
@@ -484,11 +485,11 @@ class DescrptSeACopy (DescrptSe):
                                          initializer = tf.constant_initializer(dstd))
 
         with tf.control_dependencies([t_sel, t_original_sel]):
-            coord = tf.reshape (coord_, [-1, natoms[1] * 3])
+            coord = tf.reshape (coord_, [-1, natoms[1] * 3]) #  n_frames x n_total_atoms
         box   = tf.reshape (box_, [-1, 9])
         atype = tf.reshape (atype_, [-1, natoms[1]])
 
-        op_descriptor = build_op_descriptor() if nvnmd_cfg.enable else op_module.prod_env_mat_a
+        op_descriptor = build_op_descriptor() if nvnmd_cfg.enable else op_module.prod_env_mat_a # to produce neighbor matrix
         self.descrpt, self.descrpt_deriv, self.rij, self.nlist \
             = op_descriptor           (coord,
                                        atype,
@@ -507,16 +508,18 @@ class DescrptSeACopy (DescrptSe):
         tf.summary.histogram('rij', self.rij)
         tf.summary.histogram('nlist', self.nlist)
 
-        self.descrpt_reshape = tf.reshape(self.descrpt, [-1, self.ndescrpt])
+        self.descrpt_reshape = tf.reshape(self.descrpt, [-1, self.ndescrpt]) # shape: n_atom, nnei * 4
         self._identity_tensors(suffix=suffix)
 
-        self.dout, self.qmat = self._pass_filter(self.descrpt_reshape, 
+        self.dout, self.qmat = self._pass_filter(self.descrpt_reshape, # from op_module.prod_env_mat_a
                                                  atype,
                                                  natoms, 
                                                  input_dict,
                                                  suffix = suffix, 
                                                  reuse = reuse, 
-                                                 trainable = self.trainable)
+                                                 trainable = self.trainable,
+                                                 coord = coord # added by Yufan
+                                                 )
 
         print("self.dout.shape, self.qmat.shape: " + str(self.dout.shape) + " " + str(self.qmat.shape))
 
@@ -588,7 +591,8 @@ class DescrptSeACopy (DescrptSe):
                      input_dict,
                      reuse = None,
                      suffix = '', 
-                     trainable = True) :
+                     trainable = True,
+                     coord = None) :
         if input_dict is not None:
             type_embedding = input_dict.get('type_embedding', None)
         else:
@@ -819,7 +823,7 @@ class DescrptSeACopy (DescrptSe):
     @cast_precision
     def _filter(
             self, 
-            inputs, 
+            inputs, # ONE LINE CONTAINS ONE ATOM's SEL NEI  
             type_input,
             natoms,
             type_embedding = None,
@@ -913,7 +917,7 @@ class DescrptSeACopy (DescrptSe):
 
         # print("outputs_size[-1], outputs_size_2: " + str(outputs_size[-1]) + " " + str(outputs_size_2))
         print("result, qmat: " + str(result.shape) + " " + str(qmat.shape))
-
+        print("inputs.shape" + str(inputs.shape))
         # append distance to interface to result
         # dist_inter = 
 
