@@ -58,6 +58,7 @@ class Descriptor(PluginVariant):
             if descrpt_type in Descriptor.__plugins.plugins:
                 cls = Descriptor.__plugins.plugins[descrpt_type]
             else:
+                print(Descriptor.__plugins.plugins)
                 raise RuntimeError('Unknown descriptor type: ' + descrpt_type)
         return super().__new__(cls)
 

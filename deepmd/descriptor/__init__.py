@@ -1,6 +1,7 @@
 from .descriptor import Descriptor
 from .hybrid import DescrptHybrid
 from .se_a import DescrptSeA
+from .se_a_copy import DescrptSeACopy
 from .se_r import DescrptSeR
 from .se_t import DescrptSeT
 from .se_a_ebd import DescrptSeAEbd
