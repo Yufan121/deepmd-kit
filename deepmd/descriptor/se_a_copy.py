@@ -218,7 +218,7 @@ class DescrptSeACopy (DescrptSe):
         """
         Returns the output dimension of this descriptor
         """
-        return self.filter_neuron[-1] * self.n_axis_neuron
+        return self.filter_neuron[-1] * self.n_axis_neuron + 1 # Yufan: add an additional distance dimension
 
     def get_dim_rot_mat_1 (self) -> int:
         """
@@ -608,7 +608,18 @@ class DescrptSeACopy (DescrptSe):
                                      [-1, natoms[2+type_i], -1] )
                 inputs_i = tf.reshape(inputs_i, [-1, self.ndescrpt])
                 filter_name = 'filter_type_'+str(type_i)+suffix
-                layer, qmat = self._filter(inputs_i, type_i, name=filter_name, natoms=natoms, reuse=reuse, trainable = trainable, activation_fn = self.filter_activation_fn)
+                layer, qmat = self._filter(inputs_i, type_i, name=filter_name, natoms=natoms, reuse=reuse, trainable = trainable, activation_fn = self.filter_activation_fn, coord = coord)
+                
+                # Yufan: append "distance to interface" to result, change corresponding shape in outer methods
+                coord_index = [3*start_index, 3*(start_index + natoms[2+type_i])]
+                z_coords_atoms = coord[:, coord_index[0]+2:coord_index[1]:3] # shape must be (1, natoms[2+type_i] * 3), contains only coords of atom type i
+                interface_pos = tf.constant([48/2], dtype = tf.float64)
+                interface_pos = tf.broadcast_to(interface_pos, [1, natoms[2+type_i]])
+                dists_to_inter = z_coords_atoms - interface_pos
+                dists_to_inter = tf.reshape(dists_to_inter, [-1, 1])
+                layer = tf.concat([layer, dists_to_inter], 1) # of shape (natoms[1], M1*M2)
+                
+                # back to deepmd
                 layer = tf.reshape(layer, [tf.shape(inputs)[0], natoms[2+type_i], self.get_dim_out()])
                 qmat  = tf.reshape(qmat,  [tf.shape(inputs)[0], natoms[2+type_i], self.get_dim_rot_mat_1() * 3])
                 output.append(layer)
@@ -631,7 +642,7 @@ class DescrptSeACopy (DescrptSe):
                 )
                 inputs_i *= mask
 
-            layer, qmat = self._filter(inputs_i, type_i, name='filter_type_all'+suffix, natoms=natoms, reuse=reuse, trainable = trainable, activation_fn = self.filter_activation_fn, type_embedding=type_embedding)
+            layer, qmat = self._filter(inputs_i, type_i, name='filter_type_all'+suffix, natoms=natoms, reuse=reuse, trainable = trainable, activation_fn = self.filter_activation_fn, type_embedding=type_embedding, coord = coord)
             layer = tf.reshape(layer, [tf.shape(inputs)[0], natoms[0], self.get_dim_out()])
             qmat  = tf.reshape(qmat,  [tf.shape(inputs)[0], natoms[0], self.get_dim_rot_mat_1() * 3])
             output.append(layer)
@@ -832,7 +843,8 @@ class DescrptSeACopy (DescrptSe):
             bavg=0.0,
             name='linear', 
             reuse=None,
-            trainable = True):
+            trainable = True,
+            coord = None):
         nframes = tf.shape(tf.reshape(inputs, [-1, natoms[0], self.ndescrpt]))[0]
         # natom x (nei x 4)
         shape = inputs.get_shape().as_list()
@@ -918,10 +930,7 @@ class DescrptSeACopy (DescrptSe):
         # print("outputs_size[-1], outputs_size_2: " + str(outputs_size[-1]) + " " + str(outputs_size_2))
         print("result, qmat: " + str(result.shape) + " " + str(qmat.shape))
         print("inputs.shape" + str(inputs.shape))
-        # append distance to interface to result
-        # dist_inter = 
-
-
+        
         return result, qmat
 
     def init_variables(self,
