@@ -518,7 +518,8 @@ class DescrptSeACopy (DescrptSe):
                                                  suffix = suffix, 
                                                  reuse = reuse, 
                                                  trainable = self.trainable,
-                                                 coord = coord # added by Yufan
+                                                 coord = coord, # added by Yufan
+                                                 box = box
                                                  )
 
         print("self.dout.shape, self.qmat.shape: " + str(self.dout.shape) + " " + str(self.qmat.shape))
@@ -592,7 +593,8 @@ class DescrptSeACopy (DescrptSe):
                      reuse = None,
                      suffix = '', 
                      trainable = True,
-                     coord = None) :
+                     coord = None,
+                     box = None) :
         if input_dict is not None:
             type_embedding = input_dict.get('type_embedding', None)
         else:
@@ -613,10 +615,12 @@ class DescrptSeACopy (DescrptSe):
                 # Yufan: append "distance to interface" to result, change corresponding shape in outer methods
                 coord_index = [3*start_index, 3*(start_index + natoms[2+type_i])]
                 z_coords_atoms = coord[:, coord_index[0]+2:coord_index[1]:3] # shape must be (1, natoms[2+type_i] * 3), contains only coords of atom type i
+                interface_pos = self.get_dist_to_interface(coord=coord, axis_interface='z', bin_width = 0.1, box = box)
                 interface_pos = tf.constant([48/2], dtype = tf.float64)
                 interface_pos = tf.broadcast_to(interface_pos, [1, natoms[2+type_i]])
                 dists_to_inter = z_coords_atoms - interface_pos
                 dists_to_inter = tf.reshape(dists_to_inter, [-1, 1])
+                # tf.print(dists_to_inter)
                 layer = tf.concat([layer, dists_to_inter], 1) # of shape (natoms[1], M1*M2)
                 
                 # back to deepmd
@@ -651,6 +655,34 @@ class DescrptSeACopy (DescrptSe):
         output_qmat = tf.concat(output_qmat, axis = 1)
         return output, output_qmat
 
+    def get_dist_to_interface(self, # Yufan
+                              coord=None,
+                              axis_interface=None,
+                              bin_width = 0.1,
+                              box = None): # Yufan
+        if axis_interface == 'z':
+            atom_coord_z = coord[:, 2::3]
+            atom_coord_z = tf.reshape(atom_coord_z, [-1])
+
+            # get histogram of z coord
+            z_box = box[:, 8]# x,y,z are idx 0,4,8
+            # print("z_box ", str(z_box))
+            # print("box"+str(box))
+            
+            # nbins = tf.cast(z_box / bin_width, tf.int32)
+            # nbins = tf.reshape(nbins, [-1])
+            nbins = 100
+            zero = tf.constant([0], dtype = tf.float64)
+            print("zero ", str(zero))
+            print("z_box ", str(z_box))
+            value_range = tf.concat([zero, z_box], 0) # two tensor as value range
+            value_range = tf.reshape(value_range, [-1])
+            print("value_range ", str(value_range))
+
+            hist = tf.histogram_fixed_width(atom_coord_z, value_range, nbins=nbins)
+        distance = 0
+        
+        return distance
 
     def _compute_dstats_sys_smth (self,
                                  data_coord, 

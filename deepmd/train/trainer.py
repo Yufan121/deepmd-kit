@@ -694,8 +694,8 @@ class DPTrainer (object):
                 train_batch = train_data.get_batch()
                 # print("type(train_batch)"+str(type(train_batch)))
                 # print("train_batch.keys()"+str(train_batch.keys()))
-                # print("train_batch[\"coord\"]"+str(train_batch["coord"]))
-                # print("train_batch[\"coord\"].shape"+str(train_batch["coord"].shape))
+                print("train_batch[\"box\"]"+str(train_batch["box"]))
+                print("train_batch[\"box\"].shape"+str(train_batch["box"].shape))
                 batch_train_op = self.train_op
             else:
                 fitting_idx = dp_random.choice(
