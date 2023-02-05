@@ -603,6 +603,11 @@ class DescrptSeACopy (DescrptSe):
         inputs = tf.reshape(inputs, [-1, natoms[0], self.ndescrpt])
         output = []
         output_qmat = []
+
+        # get dist to interface        
+        IF_1, IF_2, box_1d = self.get_dist_to_interface(coord=coord, inputs=inputs, natoms=natoms, axis_interface='z', bin_width = 0.1, box = box, type_embedding = type_embedding)
+        
+
         if not self.type_one_side and type_embedding is None:
             for type_i in range(self.ntypes):
                 inputs_i = tf.slice (inputs,
@@ -615,11 +620,41 @@ class DescrptSeACopy (DescrptSe):
                 # Yufan: append "distance to interface" to result, change corresponding shape in outer methods
                 coord_index = [3*start_index, 3*(start_index + natoms[2+type_i])]
                 z_coords_atoms = coord[:, coord_index[0]+2:coord_index[1]:3] # shape must be (1, natoms[2+type_i] * 3), contains only coords of atom type i
-                interface_pos = self.get_dist_to_interface(coord=coord, axis_interface='z', bin_width = 0.1, box = box)
-                interface_pos = tf.constant([48/2], dtype = tf.float64)
-                interface_pos = tf.broadcast_to(interface_pos, [1, natoms[2+type_i]])
-                dists_to_inter = z_coords_atoms - interface_pos
+                z_coords_atoms = tf.reshape(z_coords_atoms, [-1, 1])
+
+                # calculate dist_to_interface
+                # range1: < IF1, range2: IF1 ~ IF2, range3: > IF2
+                range1 = tf.logical_not(tf.math.greater(z_coords_atoms, IF_1))
+                range2 = tf.logical_and(tf.math.greater(z_coords_atoms, IF_1), tf.logical_not(tf.math.greater(z_coords_atoms, IF_2)))                
+                range3 = tf.math.greater(z_coords_atoms, IF_2)
+                
+                # potential problems
+                dists_to_inter = tf.identity(z_coords_atoms)
+                zero = tf.constant([0.0], dtype = tf.float64)
+                dists_to_inter = tf.where(range1, 
+                                          tf.math.maximum(dists_to_inter - IF_1, IF_2 - dists_to_inter),
+                                          tf.broadcast_to(zero, [natoms[2+type_i], 1]))
+                dists_to_inter = tf.where(range2, 
+                                          tf.math.minimum(dists_to_inter - IF_1, IF_2 - dists_to_inter - box_1d),
+                                          tf.broadcast_to(zero, [natoms[2+type_i], 1]))
+                dists_to_inter = tf.where(range3, 
+                                          tf.math.maximum(dists_to_inter - IF_1 - box_1d, IF_2 - dists_to_inter),
+                                          tf.broadcast_to(zero, [natoms[2+type_i], 1]))
+
+                # dists_to_inter[range1] = tf.math.maximum(z_coords_atoms[range1] - IF_1, IF_2 - z_coords_atoms[range1])
+                # dists_to_inter[range2] = tf.math.minimum(z_coords_atoms[range2] - IF_1, IF_2 - z_coords_atoms[range2] - box_1d)
+                # dists_to_inter[range3] = tf.math.maximum(z_coords_atoms[range3] - IF_1 - box_1d, IF_2 - z_coords_atoms[range3])
+
                 dists_to_inter = tf.reshape(dists_to_inter, [-1, 1])
+                print("dists_to_inter.shape" + str(dists_to_inter.shape))
+
+                # interface_pos = tf.constant([48/2], dtype = tf.float64)
+                
+                # interface_pos = tf.broadcast_to(interface_pos, [1, natoms[2+type_i]])
+                # dists_to_inter = z_coords_atoms - interface_pos
+                # dists_to_inter = tf.reshape(dists_to_inter, [-1, 1])
+                
+                
                 # tf.print(dists_to_inter)
                 layer = tf.concat([layer, dists_to_inter], 1) # of shape (natoms[1], M1*M2)
                 
@@ -657,32 +692,127 @@ class DescrptSeACopy (DescrptSe):
 
     def get_dist_to_interface(self, # Yufan
                               coord=None,
+                              inputs=None,
+                              natoms=None,
                               axis_interface=None,
                               bin_width = 0.1,
-                              box = None): # Yufan
-        if axis_interface == 'z':
-            atom_coord_z = coord[:, 2::3]
-            atom_coord_z = tf.reshape(atom_coord_z, [-1])
-
-            # get histogram of z coord
-            z_box = box[:, 8]# x,y,z are idx 0,4,8
-            # print("z_box ", str(z_box))
-            # print("box"+str(box))
+                              box = None,
+                              type_embedding = None): # Yufan
+        """
+        Compute interface position IF1 and IF2 *YUFAN
+        Currently only support water in the middle
+        
+        
+        Parameters
+        ----------
+        coord
+                all atoms coords in a frame
+        inputs
+                neighbors coords (not used yet)
+        natoms
+                The number of atoms. This tensor has the length of Ntypes + 2
+                natoms[0]: number of local atoms
+                natoms[1]: total number of atoms held by this processor
+                natoms[i]: 2 <= i < Ntypes+2, number of type i atoms
+        axis_interface
+                the axis (dimension) for the interface position
+        bin_width
+                bin width for binning to get density histogram  
+        box
+                tensor of (?,9) containing box dimensions
+        type_embedding
+                if there is a type_embedding
+        Returns
+        -------
+        force
+                The force on atoms
+        virial
+                The total virial
+        atom_virial
+                The atomic virial
+        """
+    
+        # get box sizes
+        x_box = box[:, 0]# x,y,z are idx 0,4,8
+        x_box = tf.reshape(x_box, [-1, 1])
+        x_box = tf.reduce_mean(x_box, 0)
+        y_box = box[:, 4]# x,y,z are idx 0,4,8
+        y_box = tf.reshape(y_box, [-1, 1])
+        y_box = tf.reduce_mean(y_box, 0)
+        z_box = box[:, 8]# x,y,z are idx 0,4,8
+        z_box = tf.reshape(z_box, [-1, 1])
+        z_box = tf.reduce_mean(z_box, 0)
+        # print("z_box ", str(z_box))
+        # print("box"+str(box))
             
-            # nbins = tf.cast(z_box / bin_width, tf.int32)
-            # nbins = tf.reshape(nbins, [-1])
-            nbins = 100
+        # define mass
+        mass = [16.0, 1.008]
+        mass = tf.constant(mass, dtype = tf.float64)
+
+        if axis_interface == 'z':
+            # atom_coord_z = coord[:, 2::3] # : at dim 0 could cause problem
+            # atom_coord_z = tf.reshape(atom_coord_z, [-1])
+
+
+            # prepare tensor inputs for histogram_fixed_width
+            nbins = tf.cast(z_box / bin_width, tf.int32)[0] # histogram_fixed_width takes scaler
+            # nbins = tf.reshape(nbins, [1])
+            # nbins = 100
+            bin_width = tf.constant([bin_width], dtype = tf.float64)
             zero = tf.constant([0], dtype = tf.float64)
-            print("zero ", str(zero))
-            print("z_box ", str(z_box))
+            # print("zero ", str(zero))
+            # print("z_box ", str(z_box))
             value_range = tf.concat([zero, z_box], 0) # two tensor as value range
             value_range = tf.reshape(value_range, [-1])
-            print("value_range ", str(value_range))
+            # print("value_range ", str(value_range))            
+            
+            start_index = 0
+            list_hist = []
 
-            hist = tf.histogram_fixed_width(atom_coord_z, value_range, nbins=nbins)
-        distance = 0
+            # get histgram for each type
+            if not self.type_one_side and type_embedding is None:
+                for type_i in range(self.ntypes):
+                    
+                    coord_index = [3*start_index, 3*(start_index + natoms[2+type_i])]
+                    z_coords_atoms = coord[:, coord_index[0]+2:coord_index[1]:3] # shape  (1, natoms[2+type_i] * 3), only coords of atom type i
+
+                    # get hist for atom type i
+                    hist = tf.histogram_fixed_width(z_coords_atoms, value_range, nbins=nbins)
+                    
+                    list_hist.append(mass[type_i] * tf.cast(hist, dtype = tf.float64))
+                    
+                    # refresh index
+                    start_index += natoms[2+type_i]
+                # calculate weighted hist
+                sum_hist = tf.math.add_n(list_hist)
+                sum_hist_roll = tf.roll(sum_hist, shift=1, axis=0) 
+                threshold = tf.reduce_max(sum_hist)/2
+                argmax = tf.math.argmax(sum_hist) 
+                argmax = tf.reshape(argmax, [-1])
+                # argmax = tf.cast(argmax, dtype = tf.float64)
+                print("threshold.shape" + str(threshold.shape))
+                print("argmax.shape" + str(argmax.shape))
+
+                # find crossing thres, then average on two sides of max density
+                greater = tf.math.greater(sum_hist, threshold)
+                greater_roll = tf.math.greater(sum_hist_roll, threshold)
+                
+                # get crossing
+                cross = tf.logical_or(tf.logical_and(greater, tf.logical_not(greater_roll)),
+                                      tf.logical_and(greater_roll, tf.logical_not(greater)))
+                # cross_index = tf.cast(tf.where(cross), dtype = tf.float64)
+                cross_index = tf.where(cross)
+
+                # average on two sides of argmax
+                IF_1 = tf.cast(tf.reduce_mean(cross_index[cross_index<argmax[0]], 0), dtype = tf.float64) * bin_width
+                IF_2 = tf.cast(tf.reduce_mean(cross_index[cross_index>argmax[0]], 0), dtype = tf.float64) * bin_width
+                box_1d = z_box
+            else :
+                pass
         
-        return distance
+        
+            
+        return IF_1, IF_2, box_1d
 
     def _compute_dstats_sys_smth (self,
                                  data_coord, 
