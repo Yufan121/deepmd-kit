@@ -632,14 +632,14 @@ class DescrptSeACopy (DescrptSe):
                 dists_to_inter = tf.identity(z_coords_atoms)
                 zero = tf.constant([0.0], dtype = tf.float64)
                 dists_to_inter = tf.where(range1, 
-                                          tf.math.maximum(dists_to_inter - IF_1, IF_2 - dists_to_inter),
-                                          tf.broadcast_to(zero, [natoms[2+type_i], 1]))
+                                          tf.math.maximum(dists_to_inter - IF_1, IF_2 - dists_to_inter - box_1d),
+                                          dists_to_inter)
                 dists_to_inter = tf.where(range2, 
-                                          tf.math.minimum(dists_to_inter - IF_1, IF_2 - dists_to_inter - box_1d),
-                                          tf.broadcast_to(zero, [natoms[2+type_i], 1]))
+                                          tf.math.minimum(dists_to_inter - IF_1, IF_2 - dists_to_inter),
+                                          dists_to_inter)
                 dists_to_inter = tf.where(range3, 
                                           tf.math.maximum(dists_to_inter - IF_1 - box_1d, IF_2 - dists_to_inter),
-                                          tf.broadcast_to(zero, [natoms[2+type_i], 1]))
+                                          dists_to_inter)
 
                 # dists_to_inter[range1] = tf.math.maximum(z_coords_atoms[range1] - IF_1, IF_2 - z_coords_atoms[range1])
                 # dists_to_inter[range2] = tf.math.minimum(z_coords_atoms[range2] - IF_1, IF_2 - z_coords_atoms[range2] - box_1d)
