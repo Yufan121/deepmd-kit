@@ -625,7 +625,7 @@ class DescrptSeACopy (DescrptSe):
                 # calculate dist_to_interface
                 # range1: < IF1, range2: IF1 ~ IF2, range3: > IF2
                 range1 = tf.logical_not(tf.math.greater(z_coords_atoms, IF_1))
-                range2 = tf.logical_and(tf.math.greater(z_coords_atoms, IF_1), tf.logical_not(tf.math.greater(z_coords_atoms, IF_2)))                
+                range2 = tf.logical_and(tf.math.greater(z_coords_atoms, IF_1), tf.logical_not(tf.math.greater(z_coords_atoms, IF_2)))
                 range3 = tf.math.greater(z_coords_atoms, IF_2)
                 
                 # potential problems
@@ -647,6 +647,9 @@ class DescrptSeACopy (DescrptSe):
 
                 dists_to_inter = tf.reshape(dists_to_inter, [-1, 1])
                 print("dists_to_inter.shape" + str(dists_to_inter.shape))
+                tf.summary.histogram('IF_1', IF_1)
+                tf.summary.histogram('IF_2', IF_2)
+                tf.summary.histogram('dists_to_inter', dists_to_inter)
 
                 # interface_pos = tf.constant([48/2], dtype = tf.float64)
                 
@@ -688,7 +691,7 @@ class DescrptSeACopy (DescrptSe):
             output_qmat.append(qmat)
         output = tf.concat(output, axis = 1)
         output_qmat = tf.concat(output_qmat, axis = 1)
-        return output, output_qmat
+        return output, output_qmat 
 
     def get_dist_to_interface(self, # Yufan
                               coord=None,
