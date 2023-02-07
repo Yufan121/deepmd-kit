@@ -21,8 +21,8 @@ from deepmd.nvnmd.descriptor.se_a import descrpt2r4, build_davg_dstd, build_op_d
 from deepmd.nvnmd.utils.config import nvnmd_cfg 
 
 # @Descriptor.register("se_e2_a")
-@Descriptor.register("se_a_copy")
-class DescrptSeACopy (DescrptSe):
+@Descriptor.register("se_a_copy_fix")
+class DescrptSeACopyFix (DescrptSe):
     r"""DeepPot-SE constructed from all information (both angular and radial) of
     atomic configurations. The embedding takes the distance between atoms as input.
 
