@@ -748,71 +748,14 @@ class DescrptSeACopyFix (DescrptSe):
         # print("z_box ", str(z_box))
         # print("box"+str(box))
             
-        # define mass
-        mass = [16.0, 1.008]
-        mass = tf.constant(mass, dtype = tf.float64)
-
-        if axis_interface == 'z':
-            # atom_coord_z = coord[:, 2::3] # : at dim 0 could cause problem
-            # atom_coord_z = tf.reshape(atom_coord_z, [-1])
-
-
-            # prepare tensor inputs for histogram_fixed_width
-            nbins = tf.cast(z_box / bin_width, tf.int32)[0] # histogram_fixed_width takes scaler
-            # nbins = tf.reshape(nbins, [1])
-            # nbins = 100
-            bin_width = tf.constant([bin_width], dtype = tf.float64)
-            zero = tf.constant([0], dtype = tf.float64)
-            # print("zero ", str(zero))
-            # print("z_box ", str(z_box))
-            value_range = tf.concat([zero, z_box], 0) # two tensor as value range
-            value_range = tf.reshape(value_range, [-1])
-            # print("value_range ", str(value_range))            
-            
-            start_index = 0
-            list_hist = []
-
-            # get histgram for each type
-            if not self.type_one_side and type_embedding is None:
-                for type_i in range(self.ntypes):
-                    
-                    coord_index = [3*start_index, 3*(start_index + natoms[2+type_i])]
-                    z_coords_atoms = coord[:, coord_index[0]+2:coord_index[1]:3] # shape  (1, natoms[2+type_i] * 3), only coords of atom type i
-
-                    # get hist for atom type i
-                    hist = tf.histogram_fixed_width(z_coords_atoms, value_range, nbins=nbins)
-                    
-                    list_hist.append(mass[type_i] * tf.cast(hist, dtype = tf.float64))
-                    
-                    # refresh index
-                    start_index += natoms[2+type_i]
-                # calculate weighted hist
-                sum_hist = tf.math.add_n(list_hist)
-                sum_hist_roll = tf.roll(sum_hist, shift=1, axis=0) 
-                threshold = tf.reduce_max(sum_hist)/2
-                argmax = tf.math.argmax(sum_hist) 
-                argmax = tf.reshape(argmax, [-1])
-                # argmax = tf.cast(argmax, dtype = tf.float64)
-                print("threshold.shape" + str(threshold.shape))
-                print("argmax.shape" + str(argmax.shape))
-
-                # find crossing thres, then average on two sides of max density
-                greater = tf.math.greater(sum_hist, threshold)
-                greater_roll = tf.math.greater(sum_hist_roll, threshold)
-                
-                # get crossing
-                cross = tf.logical_or(tf.logical_and(greater, tf.logical_not(greater_roll)),
-                                      tf.logical_and(greater_roll, tf.logical_not(greater)))
-                # cross_index = tf.cast(tf.where(cross), dtype = tf.float64)
-                cross_index = tf.where(cross)
-
-                # average on two sides of argmax
-                IF_1 = tf.cast(tf.reduce_mean(cross_index[cross_index<argmax[0]], 0), dtype = tf.float64) * bin_width
-                IF_2 = tf.cast(tf.reduce_mean(cross_index[cross_index>argmax[0]], 0), dtype = tf.float64) * bin_width
-                box_1d = z_box
-            else :
-                pass
+        fix_inter = [0.33, 0.67]
+        fix_inter = tf.constant(fix_inter, dtype = tf.float64)
         
+        if axis_interface == 'z':
+            box_1d = z_box
+            IF_1 = fix_inter[0] * z_box
+            IF_2 = fix_inter[1] * z_box
+
         
             
         return IF_1, IF_2, box_1d
