@@ -259,6 +259,40 @@ def descrpt_se_a_args():
         Argument("set_davg_zero", bool, optional = True, default = False, doc = doc_set_davg_zero)
     ]
 
+@descrpt_args_plugin.register("se_a_liq_liq_fix")
+def descrpt_se_a_args():
+    doc_sel = 'This parameter set the number of selected neighbors for each type of atom. It can be:\n\n\
+    - `List[int]`. The length of the list should be the same as the number of atom types in the system. `sel[i]` gives the selected number of type-i neighbors. `sel[i]` is recommended to be larger than the maximally possible number of type-i neighbors in the cut-off radius. It is noted that the total sel value must be less than 4096 in a GPU environment.\n\n\
+    - `str`. Can be "auto:factor" or "auto". "factor" is a float number larger than 1. This option will automatically determine the `sel`. In detail it counts the maximal number of neighbors with in the cutoff radius for each type of neighbor, then multiply the maximum by the "factor". Finally the number is wraped up to 4 divisible. The option "auto" is equivalent to "auto:1.1".'
+    doc_rcut = 'The cut-off radius.'
+    doc_rcut_smth = 'Where to start smoothing. For example the 1/r term is smoothed from `rcut` to `rcut_smth`'
+    doc_neuron = 'Number of neurons in each hidden layers of the embedding net. When two layers are of the same size or one layer is twice as large as the previous layer, a skip connection is built.'
+    doc_axis_neuron = 'Size of the submatrix of G (embedding matrix).'
+    doc_activation_function = f'The activation function in the embedding net. Supported activation functions are {list_to_doc(ACTIVATION_FN_DICT.keys())} Note that "gelu" denotes the custom operator version, and "gelu_tf" denotes the TF standard version.'
+    doc_resnet_dt = 'Whether to use a "Timestep" in the skip connection'
+    doc_type_one_side = 'Try to build N_types embedding nets. Otherwise, building N_types^2 embedding nets'
+    doc_precision = f'The precision of the embedding net parameters, supported options are {list_to_doc(PRECISION_DICT.keys())} Default follows the interface precision.'
+    doc_trainable = 'If the parameters in the embedding net is trainable'
+    doc_seed = 'Random seed for parameter initialization'
+    doc_exclude_types = 'The excluded pairs of types which have no interaction with each other. For example, `[[0, 1]]` means no interaction between type 0 and type 1.'
+    doc_set_davg_zero = 'Set the normalization average to zero. This option should be set when `atom_ener` in the energy fitting is used'
+    
+    return [
+        Argument("sel", [list,str], optional = True, default = "auto", doc = doc_sel),
+        Argument("rcut", float, optional = True, default = 6.0, doc = doc_rcut),
+        Argument("rcut_smth", float, optional = True, default = 0.5, doc = doc_rcut_smth),
+        Argument("neuron", list, optional = True, default = [10,20,40], doc = doc_neuron),
+        Argument("axis_neuron", int, optional = True, default = 4, alias = ['n_axis_neuron'], doc = doc_axis_neuron),
+        Argument("activation_function", str, optional = True, default = 'tanh', doc = doc_activation_function),
+        Argument("resnet_dt", bool, optional = True, default = False, doc = doc_resnet_dt),
+        Argument("type_one_side", bool, optional = True, default = False, doc = doc_type_one_side),
+        Argument("precision", str, optional = True, default = "default", doc = doc_precision),
+        Argument("trainable", bool, optional = True, default = True, doc = doc_trainable),
+        Argument("seed", [int,None], optional = True, doc = doc_seed),
+        Argument("exclude_types", list, optional = True, default = [], doc = doc_exclude_types),
+        Argument("set_davg_zero", bool, optional = True, default = False, doc = doc_set_davg_zero)
+    ]
+
 
 @descrpt_args_plugin.register("se_e3", alias=['se_at', 'se_a_3be', 'se_t'])
 def descrpt_se_t_args():
