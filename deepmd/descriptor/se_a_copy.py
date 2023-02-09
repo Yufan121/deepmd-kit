@@ -659,7 +659,7 @@ class DescrptSeACopy (DescrptSe):
                 
                 
                 # tf.print(dists_to_inter)
-                layer = tf.concat([layer, dists_to_inter], 1) # of shape (natoms[1], M1*M2)
+                layer = tf.concat([layer, dists_to_inter], 1) # layers of shape (natoms[1], M1*M2 + 1)
                 
                 # back to deepmd
                 layer = tf.reshape(layer, [tf.shape(inputs)[0], natoms[2+type_i], self.get_dim_out()])
@@ -685,10 +685,57 @@ class DescrptSeACopy (DescrptSe):
                 inputs_i *= mask
 
             layer, qmat = self._filter(inputs_i, type_i, name='filter_type_all'+suffix, natoms=natoms, reuse=reuse, trainable = trainable, activation_fn = self.filter_activation_fn, type_embedding=type_embedding, coord = coord)
+            
+            # Yufan: calculate dist_to_interface
+            # get z from xyz
+            z_coords_atoms = coord[:, 2::3]
+            z_coords_atoms = tf.reshape(z_coords_atoms, [-1, 1])
+
+            # range1: < IF1, range2: IF1 ~ IF2, range3: > IF2
+            range1 = tf.logical_not(tf.math.greater(z_coords_atoms, IF_1))
+            range2 = tf.logical_and(tf.math.greater(z_coords_atoms, IF_1), tf.logical_not(tf.math.greater(z_coords_atoms, IF_2)))
+            range3 = tf.math.greater(z_coords_atoms, IF_2)
+            
+            # potential problems with shape[0] of layer, but later noticed we have reshape for payer
+            dists_to_inter = tf.identity(z_coords_atoms)
+            zero = tf.constant([0.0], dtype = tf.float64)
+            dists_to_inter = tf.where(range1, 
+                                        tf.math.maximum(dists_to_inter - IF_1, IF_2 - dists_to_inter - box_1d),
+                                        dists_to_inter)
+            dists_to_inter = tf.where(range2, 
+                                        tf.math.minimum(dists_to_inter - IF_1, IF_2 - dists_to_inter),
+                                        dists_to_inter)
+            dists_to_inter = tf.where(range3, 
+                                        tf.math.maximum(dists_to_inter - IF_1 - box_1d, IF_2 - dists_to_inter),
+                                        dists_to_inter)
+
+            # dists_to_inter[range1] = tf.math.maximum(z_coords_atoms[range1] - IF_1, IF_2 - z_coords_atoms[range1])
+            # dists_to_inter[range2] = tf.math.minimum(z_coords_atoms[range2] - IF_1, IF_2 - z_coords_atoms[range2] - box_1d)
+            # dists_to_inter[range3] = tf.math.maximum(z_coords_atoms[range3] - IF_1 - box_1d, IF_2 - z_coords_atoms[range3])
+
+            dists_to_inter = tf.reshape(dists_to_inter, [-1, 1])
+            print("dists_to_inter.shape" + str(dists_to_inter.shape))
+            tf.summary.histogram('dists_to_inter', dists_to_inter)
+
+            # interface_pos = tf.constant([48/2], dtype = tf.float64)
+            
+            # interface_pos = tf.broadcast_to(interface_pos, [1, natoms[2+type_i]])
+            # dists_to_inter = z_coords_atoms - interface_pos
+            # dists_to_inter = tf.reshape(dists_to_inter, [-1, 1])
+            
+            
+            # tf.print(dists_to_inter)
+            layer = tf.concat([layer, dists_to_inter], 1) # layers of shape (natoms[1], M1*M2 + 1)
+            
+            
             layer = tf.reshape(layer, [tf.shape(inputs)[0], natoms[0], self.get_dim_out()])
             qmat  = tf.reshape(qmat,  [tf.shape(inputs)[0], natoms[0], self.get_dim_rot_mat_1() * 3])
+
             output.append(layer)
             output_qmat.append(qmat)
+            
+            
+            
         output = tf.concat(output, axis = 1)
         output_qmat = tf.concat(output_qmat, axis = 1)
         return output, output_qmat 
@@ -773,46 +820,50 @@ class DescrptSeACopy (DescrptSe):
             list_hist = []
 
             # get histgram for each type
-            if not self.type_one_side and type_embedding is None:
-                for type_i in range(self.ntypes):
-                    
-                    coord_index = [3*start_index, 3*(start_index + natoms[2+type_i])]
-                    z_coords_atoms = coord[:, coord_index[0]+2:coord_index[1]:3] # shape  (1, natoms[2+type_i] * 3), only coords of atom type i
-
-                    # get hist for atom type i
-                    hist = tf.histogram_fixed_width(z_coords_atoms, value_range, nbins=nbins)
-                    
-                    list_hist.append(mass[type_i] * tf.cast(hist, dtype = tf.float64))
-                    
-                    # refresh index
-                    start_index += natoms[2+type_i]
-                # calculate weighted hist
-                sum_hist = tf.math.add_n(list_hist)
-                sum_hist_roll = tf.roll(sum_hist, shift=1, axis=0) 
-                threshold = tf.reduce_max(sum_hist)/2
-                argmax = tf.math.argmax(sum_hist) 
-                argmax = tf.reshape(argmax, [-1])
-                # argmax = tf.cast(argmax, dtype = tf.float64)
-                print("threshold.shape" + str(threshold.shape))
-                print("argmax.shape" + str(argmax.shape))
-
-                # find crossing thres, then average on two sides of max density
-                greater = tf.math.greater(sum_hist, threshold)
-                greater_roll = tf.math.greater(sum_hist_roll, threshold)
+            # if not self.type_one_side and type_embedding is None:
+            for type_i in range(self.ntypes):
                 
-                # get crossing
-                cross = tf.logical_or(tf.logical_and(greater, tf.logical_not(greater_roll)),
-                                      tf.logical_and(greater_roll, tf.logical_not(greater)))
-                # cross_index = tf.cast(tf.where(cross), dtype = tf.float64)
-                cross_index = tf.where(cross)
+                coord_index = [3*start_index, 3*(start_index + natoms[2+type_i])]
+                z_coords_atoms = coord[:, coord_index[0]+2:coord_index[1]:3] # shape  (1, natoms[2+type_i] * 3), only coords of atom type i
 
-                # average on two sides of argmax
-                IF_1 = tf.cast(tf.reduce_mean(cross_index[cross_index<argmax[0]], 0), dtype = tf.float64) * bin_width
-                IF_2 = tf.cast(tf.reduce_mean(cross_index[cross_index>argmax[0]], 0), dtype = tf.float64) * bin_width
-                box_1d = z_box
-            else :
-                pass
-        
+                # get hist for atom type i
+                hist = tf.histogram_fixed_width(z_coords_atoms, value_range, nbins=nbins)
+                
+                list_hist.append(mass[type_i] * tf.cast(hist, dtype = tf.float64))
+                
+                # refresh index
+                start_index += natoms[2+type_i]
+            # calculate weighted hist
+            sum_hist = tf.math.add_n(list_hist)
+            sum_hist_roll = tf.roll(sum_hist, shift=1, axis=0) 
+            threshold = tf.reduce_max(sum_hist)/2
+            argmax = tf.math.argmax(sum_hist) 
+            argmax = tf.reshape(argmax, [-1])
+            # argmax = tf.cast(argmax, dtype = tf.float64)
+            print("threshold.shape" + str(threshold.shape))
+            print("argmax.shape" + str(argmax.shape))
+
+            # find crossing thres, then average on two sides of max density
+            greater = tf.math.greater(sum_hist, threshold)
+            greater_roll = tf.math.greater(sum_hist_roll, threshold)
+            
+            # get crossing
+            cross = tf.logical_or(tf.logical_and(greater, tf.logical_not(greater_roll)),
+                                    tf.logical_and(greater_roll, tf.logical_not(greater)))
+            # cross_index = tf.cast(tf.where(cross), dtype = tf.float64)
+            cross_index = tf.where(cross)
+
+            # average on two sides of argmax
+            IF_1 = tf.cast(tf.reduce_mean(cross_index[cross_index<argmax[0]], 0), dtype = tf.float64) * bin_width
+            IF_2 = tf.cast(tf.reduce_mean(cross_index[cross_index>argmax[0]], 0), dtype = tf.float64) * bin_width
+            box_1d = z_box
+            # else : # type embedding net is enabled
+            #     pass
+            
+        elif axis_interface == 'y':
+            pass
+        elif axis_interface == 'x': 
+            pass
         
             
         return IF_1, IF_2, box_1d
