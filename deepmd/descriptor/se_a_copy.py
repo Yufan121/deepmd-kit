@@ -688,7 +688,7 @@ class DescrptSeACopy (DescrptSe):
             
             # Yufan: calculate dist_to_interface
             # get z from xyz
-            z_coords_atoms = coord[:, 2::3]
+            z_coords_atoms = coord[:, 2:natoms[0]*3:3]
             z_coords_atoms = tf.reshape(z_coords_atoms, [-1, 1])
 
             # range1: < IF1, range2: IF1 ~ IF2, range3: > IF2
@@ -709,11 +709,8 @@ class DescrptSeACopy (DescrptSe):
                                         tf.math.maximum(dists_to_inter - IF_1 - box_1d, IF_2 - dists_to_inter),
                                         dists_to_inter)
 
-            # dists_to_inter[range1] = tf.math.maximum(z_coords_atoms[range1] - IF_1, IF_2 - z_coords_atoms[range1])
-            # dists_to_inter[range2] = tf.math.minimum(z_coords_atoms[range2] - IF_1, IF_2 - z_coords_atoms[range2] - box_1d)
-            # dists_to_inter[range3] = tf.math.maximum(z_coords_atoms[range3] - IF_1 - box_1d, IF_2 - z_coords_atoms[range3])
 
-            dists_to_inter = tf.reshape(dists_to_inter, [-1, 1])
+            dists_to_inter = tf.reshape(dists_to_inter, [natoms[0], 1])
             print("dists_to_inter.shape" + str(dists_to_inter.shape))
             tf.summary.histogram('dists_to_inter', dists_to_inter)
 
@@ -725,8 +722,8 @@ class DescrptSeACopy (DescrptSe):
             
             
             # tf.print(dists_to_inter)
-            layer = tf.concat([layer, dists_to_inter], 1) # layers of shape (natoms[1], M1*M2 + 1)
-            
+            layer = tf.concat([layer, dists_to_inter], 1, name="concat_dist_inter") # layers of shape (natoms[1], M1*M2 + 1)
+            print("layer.shape" + str(layer.shape))
             
             layer = tf.reshape(layer, [tf.shape(inputs)[0], natoms[0], self.get_dim_out()])
             qmat  = tf.reshape(qmat,  [tf.shape(inputs)[0], natoms[0], self.get_dim_rot_mat_1() * 3])
