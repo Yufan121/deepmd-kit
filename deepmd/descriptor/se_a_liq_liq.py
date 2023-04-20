@@ -20,6 +20,19 @@ from .se import DescrptSe
 from deepmd.nvnmd.descriptor.se_a import descrpt2r4, build_davg_dstd, build_op_descriptor, filter_lower_R42GR, filter_GR2D
 from deepmd.nvnmd.utils.config import nvnmd_cfg 
 
+
+"""
+Yufan: 2023-04-20
+
+New descriptor incorporating distance to the interface as a feature for the liquid-liquid system.
+1. the location of the new feature is inbetween the embedding and the fitting
+2. the distance is calculated as the minimum distance to the two interfaces (IF1 and IF2)
+3. the system coordinates should be in PBC, and the coordinates should be shifted such that one phase is at the center of the box and the other phase is at the edge of the box
+4. the interface should be seperated in the z axis
+5. the interface are calculated using density, and atomic masses is hard coded in this file
+"""
+
+
 # @Descriptor.register("se_e2_a")
 @Descriptor.register("se_a_liq_liq")
 class DescrptSeALiqLiq (DescrptSe):
