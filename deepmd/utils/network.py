@@ -7,7 +7,7 @@ from deepmd.common import get_precision
 def one_layer_rand_seed_shift():
     return 3
 
-def one_layer(inputs, 
+def one_layer(inputs,           # one layer 
               outputs_size, 
               activation_fn=tf.nn.tanh, 
               precision = GLOBAL_TF_FLOAT_PRECISION, 
@@ -23,7 +23,7 @@ def one_layer(inputs,
               uniform_seed = False,
               initial_variables = None,
               mixed_prec = None,
-              final_layer = False):
+              final_layer = False): 
     # For good accuracy, the last layer of the fitting network uses a higher precision neuron network.
     if mixed_prec is not None and final_layer:
         inputs = tf.cast(inputs, get_precision(mixed_prec['output_prec']))
@@ -86,7 +86,7 @@ def one_layer(inputs,
 
         if mixed_prec is not None:
             hidden = tf.cast(hidden, get_precision(mixed_prec['output_prec']))
-        return hidden
+        return hidden # of shape 
 
 
 def embedding_net_rand_seed_shift(

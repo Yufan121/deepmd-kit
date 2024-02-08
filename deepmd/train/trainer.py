@@ -558,7 +558,7 @@ class DPTrainer (object):
                     optimizer)
         if not self.multi_task_mode:
             apply_op = optimizer.minimize(loss=self.l2_l,
-                                          global_step=self.global_step,
+                                          global_step=self.global_step, # global step is the number of batches?
                                           var_list=trainable_variables,
                                           name='train_step')
             train_ops = [apply_op] + self._extra_train_ops
@@ -570,8 +570,8 @@ class DPTrainer (object):
                                               global_step=self.global_step,
                                               var_list=trainable_variables,
                                               name='train_step_{}'.format(fitting_key))
-                train_ops = [apply_op] + self._extra_train_ops
-                self.train_op[fitting_key] = tf.group(*train_ops)
+                train_ops = [apply_op] + self._extra_train_ops # ops are the operations to be performed
+                self.train_op[fitting_key] = tf.group(*train_ops) # group them together
         log.info("built training")
 
     def _init_session(self):
@@ -726,7 +726,7 @@ class DPTrainer (object):
 
             if self.timing_in_training:
                 tic = time.time()
-            train_feed_dict = self.get_feed_dict(train_batch, is_training=True)
+            train_feed_dict = self.get_feed_dict(train_batch, is_training=True) # feed dict is a dictionary of placeholders 
             # use tensorboard to visualize the training of deepmd-kit
             # it will takes some extra execution time to generate the tensorboard data
             if self.tensorboard and (cur_batch % self.tensorboard_freq == 0):
@@ -740,7 +740,7 @@ class DPTrainer (object):
                 toc = time.time()
             if self.timing_in_training:
                 train_time += toc - tic
-            cur_batch = run_sess(self.sess, self.global_step)
+            cur_batch = run_sess(self.sess, self.global_step) # global step is the number of batches
             self.cur_batch = cur_batch
 
             # on-the-fly validation
@@ -811,7 +811,7 @@ class DPTrainer (object):
                 shutil.copyfile(ori_ff, new_ff)
         log.info("saved checkpoint %s" % self.save_ckpt)
 
-    def get_feed_dict(self, batch, is_training):
+    def get_feed_dict(self, batch, is_training): # this do 
         feed_dict = {}
         for kk in batch.keys():
             if kk == 'find_type' or kk == 'type' or kk == 'real_natoms_vec':

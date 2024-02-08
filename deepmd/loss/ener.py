@@ -2,7 +2,7 @@ import numpy as np
 from deepmd.env import tf
 from deepmd.common import add_data_requirement
 
-from deepmd.env import global_cvt_2_tf_float
+from deepmd.env import global_cvt_2_tf_float # global_cvt_2_ener_float is for 
 from deepmd.env import global_cvt_2_ener_float
 from deepmd.utils.sess import run_sess
 from .loss import Loss
@@ -92,19 +92,22 @@ class EnerStdLoss (Loss) :
             atom_ener_coeff = label_dict['atom_ener_coeff']
             atom_ener_coeff = tf.reshape(atom_ener_coeff, tf.shape(atom_ener))
             energy = tf.reduce_sum(atom_ener_coeff * atom_ener, 1)
-        l2_ener_loss = tf.reduce_mean( tf.square(energy - energy_hat), name='l2_'+suffix)
+        ener_diff = energy - energy_hat # TODO Yufan multiple the weight
+        l2_ener_loss = tf.reduce_mean( tf.square(ener_diff), name='l2_'+suffix) # energy loss
 
         force_reshape = tf.reshape (force, [-1])
         force_hat_reshape = tf.reshape (force_hat, [-1])
         atom_pref_reshape = tf.reshape (atom_pref, [-1])
         diff_f = force_hat_reshape - force_reshape
-        if self.relative_f is not None:            
+        # TODO Yufan multiply by weight
+        # Yufan: check diff_f shape. This should be the point of change
+        if self.relative_f is not None:  # relative force makes the force loss scale invariant
             force_hat_3 = tf.reshape(force_hat, [-1, 3])
             norm_f = tf.reshape(tf.norm(force_hat_3, axis = 1), [-1, 1]) + self.relative_f
             diff_f_3 = tf.reshape(diff_f, [-1, 3])
             diff_f_3 = diff_f_3 / norm_f
             diff_f = tf.reshape(diff_f_3, [-1])
-        l2_force_loss = tf.reduce_mean(tf.square(diff_f), name = "l2_force_" + suffix)
+        l2_force_loss = tf.reduce_mean(tf.square(diff_f), name = "l2_force_" + suffix) # force loss
         l2_pref_force_loss = tf.reduce_mean(tf.multiply(tf.square(diff_f), atom_pref_reshape), name = "l2_pref_force_" + suffix)
 
         virial_reshape = tf.reshape (virial, [-1])

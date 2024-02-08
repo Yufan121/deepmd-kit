@@ -112,7 +112,7 @@ class DescrptSeAtten(DescrptSeA):
         """
         assert (Version(TF_VERSION) > Version('2')), "se_atten only support tensorflow version 2.0 or higher."
         self.ntypes = ntypes
-        self.att_n = attn
+        self.att_n = attn #  hidden vector length
         self.attn_layer = attn_layer
         self.attn_mask = attn_mask
         self.attn_dotr = attn_dotr
@@ -122,7 +122,7 @@ class DescrptSeAtten(DescrptSeA):
         self.sel_all_r = [0]
         avg_zero = np.zeros([self.ntypes, self.ndescrpt]).astype(GLOBAL_NP_FLOAT_PRECISION)
         std_ones = np.ones([self.ntypes, self.ndescrpt]).astype(GLOBAL_NP_FLOAT_PRECISION)
-        self.beta = np.zeros([self.attn_layer, self.filter_neuron[-1]]).astype(GLOBAL_NP_FLOAT_PRECISION)
+        self.beta = np.zeros([self.attn_layer, self.filter_neuron[-1]]).astype(GLOBAL_NP_FLOAT_PRECISION) # beta is for the attention layer
         self.gamma = np.ones([self.attn_layer, self.filter_neuron[-1]]).astype(GLOBAL_NP_FLOAT_PRECISION)
         self.attention_layer_variables = None
         sub_graph = tf.Graph()
@@ -444,7 +444,7 @@ class DescrptSeAtten(DescrptSeA):
                 sysa2.append(suma2)
         return sysr, sysr2, sysa, sysa2, sysn
 
-    def _lookup_type_embedding(
+    def _lookup_type_embedding( # concatenate type embedding to xyz_scatter
             self,
             xyz_scatter,
             natype,
@@ -516,10 +516,10 @@ class DescrptSeAtten(DescrptSeA):
         input_xyz = tf.keras.layers.LayerNormalization()(input_xyz)
         return input_xyz
 
-    def _scaled_dot_attn(self, Q, K, V, temperature, input_r, dotr=False, do_mask=False, layer=0, save_weights=True):
-        attn = tf.matmul(Q / temperature, K, transpose_b=True)
-        attn *= self.nmask
-        attn += self.negative_mask
+    def _scaled_dot_attn(self, Q, K, V, temperature, input_r, dotr=False, do_mask=False, layer=0, save_weights=True):# Q, K, V: [nframes*natoms[0]*self.nnei, d_model]
+        attn = tf.matmul(Q / temperature, K, transpose_b=True) # temperature is sqrt(dk)
+        attn *= self.nmask # mask out non-neighbors
+        attn += self.negative_mask # mask out negative values
         attn = tf.nn.softmax(attn, axis=-1)
         attn *= tf.reshape(self.nmask, [-1, attn.shape[-1], 1])
         if save_weights:
@@ -539,7 +539,7 @@ class DescrptSeAtten(DescrptSeA):
 
     def _attention_layers(
             self,
-            input_xyz,
+            input_xyz, # [nframes*natoms[0]*self.nnei, d_model]
             layer_num,
             shape_i,
             outputs_size,
@@ -554,7 +554,7 @@ class DescrptSeAtten(DescrptSeA):
             name = 'attention_layer_{}{}'.format(i, suffix)
             with tf.variable_scope(name, reuse=tf.AUTO_REUSE):
                 # input_xyz_in = tf.nn.l2_normalize(input_xyz, -1)
-                Q_c = one_layer(
+                Q_c = one_layer( # Q_c is of shape [nframes*natoms[0]*self.nnei, self.att_n] 
                     input_xyz,
                     self.att_n,
                     name='c_query',
@@ -566,7 +566,7 @@ class DescrptSeAtten(DescrptSeA):
                     trainable=trainable,
                     uniform_seed=self.uniform_seed,
                     initial_variables=self.attention_layer_variables)
-                K_c = one_layer(
+                K_c = one_layer( # K_c is of shape [nframes*natoms[0]*self.nnei, self.att_n]
                     input_xyz,
                     self.att_n,
                     name='c_key',
@@ -578,7 +578,7 @@ class DescrptSeAtten(DescrptSeA):
                     trainable=trainable,
                     uniform_seed=self.uniform_seed,
                     initial_variables=self.attention_layer_variables)
-                V_c = one_layer(
+                V_c = one_layer( # V_c is of shape [nframes*natoms[0]*self.nnei, self.att_n]
                     input_xyz,
                     self.att_n,
                     name='c_value',
@@ -601,7 +601,7 @@ class DescrptSeAtten(DescrptSeA):
                 input_att = tf.reshape(input_att, (-1, self.att_n))
 
                 # (natom x nei_type_i) x out_size
-                input_xyz += one_layer(
+                input_xyz += one_layer( # f
                     input_att,
                     outputs_size[-1],
                     name='c_out',
