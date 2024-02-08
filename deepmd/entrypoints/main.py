@@ -539,7 +539,7 @@ def parse_args(args: Optional[List[str]] = None) -> argparse.Namespace:
     argparse.Namespace
         the populated namespace
     """
-    parser = main_parser()
+    parser = main_parser() # 
     parsed_args = parser.parse_args(args=args)
     if parsed_args.command is None:
         parser.print_help()
