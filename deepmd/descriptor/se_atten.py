@@ -315,7 +315,7 @@ class DescrptSeAtten(DescrptSeA):
                                            sel_a=self.sel_all_a,
                                            sel_r=self.sel_all_r)
         self.nei_type_vec = tf.reshape(self.nei_type_vec, [-1])
-        self.nmask = tf.cast(tf.reshape(self.nmask, [-1, 1, self.sel_all_a[0]]), GLOBAL_TF_FLOAT_PRECISION)
+        self.nmask = tf.cast(tf.reshape(self.nmask, [-1, 1, self.sel_all_a[0]]), GLOBAL_TF_FLOAT_PRECISION) # [N, 1, sel_a]
         self.negative_mask = -(2 << 32) * (1.0 - self.nmask)
         # only used when tensorboard was set as true
         tf.summary.histogram('descrpt', self.descrpt)
@@ -517,25 +517,25 @@ class DescrptSeAtten(DescrptSeA):
         return input_xyz
 
     def _scaled_dot_attn(self, Q, K, V, temperature, input_r, dotr=False, do_mask=False, layer=0, save_weights=True):
-        attn = tf.matmul(Q / temperature, K, transpose_b=True)
-        attn *= self.nmask
-        attn += self.negative_mask
+        attn = tf.matmul(Q / temperature, K, transpose_b=True) # normalized
+        attn *= self.nmask # mask out non-neighbors
+        attn += self.negative_mask # 
         attn = tf.nn.softmax(attn, axis=-1)
         attn *= tf.reshape(self.nmask, [-1, attn.shape[-1], 1])
         if save_weights:
             self.attn_weight[layer] = attn[0]  # atom 0
-        if dotr:
+        if dotr: # angular
             angular_weight = tf.matmul(input_r, input_r, transpose_b=True)  # normalized
             attn *= angular_weight
             if save_weights:
                 self.angular_weight[layer] = angular_weight[0]  # atom 0
                 self.attn_weight_final[layer] = attn[0]  # atom 0
-        if do_mask:
+        if do_mask: # mask out self
             nei = int(attn.shape[-1])
             mask = tf.cast(tf.ones((nei, nei)) - tf.eye(nei), self.filter_precision)
             attn *= mask
         output = tf.matmul(attn, V)
-        return output
+        return output #
 
     def _attention_layers(
             self,
@@ -549,12 +549,12 @@ class DescrptSeAtten(DescrptSeA):
             trainable=True,
             suffix=''
     ):
-        sd_k = tf.sqrt(tf.cast(1., dtype=self.filter_precision))
+        sd_k = tf.sqrt(tf.cast(1., dtype=self.filter_precision)) # sd_k is the standard deviation of the key
         for i in range(layer_num):
             name = 'attention_layer_{}{}'.format(i, suffix)
             with tf.variable_scope(name, reuse=tf.AUTO_REUSE):
                 # input_xyz_in = tf.nn.l2_normalize(input_xyz, -1)
-                Q_c = one_layer(
+                Q_c = one_layer( # Q_c is the query
                     input_xyz,
                     self.att_n,
                     name='c_query',
@@ -566,7 +566,7 @@ class DescrptSeAtten(DescrptSeA):
                     trainable=trainable,
                     uniform_seed=self.uniform_seed,
                     initial_variables=self.attention_layer_variables)
-                K_c = one_layer(
+                K_c = one_layer( # K_c is the key
                     input_xyz,
                     self.att_n,
                     name='c_key',
@@ -578,7 +578,7 @@ class DescrptSeAtten(DescrptSeA):
                     trainable=trainable,
                     uniform_seed=self.uniform_seed,
                     initial_variables=self.attention_layer_variables)
-                V_c = one_layer(
+                V_c = one_layer( # V_c is the value
                     input_xyz,
                     self.att_n,
                     name='c_value',
@@ -597,7 +597,7 @@ class DescrptSeAtten(DescrptSeA):
                 K_c = tf.nn.l2_normalize(tf.reshape(K_c, (-1, shape_i[1] // 4, self.att_n)), -1)
                 V_c = tf.nn.l2_normalize(tf.reshape(V_c, (-1, shape_i[1] // 4, self.att_n)), -1)
 
-                input_att = self._scaled_dot_attn(Q_c, K_c, V_c, sd_k, input_r, dotr=dotr, do_mask=do_mask, layer=i)
+                input_att = self._scaled_dot_attn(Q_c, K_c, V_c, sd_k, input_r, dotr=dotr, do_mask=do_mask, layer=i) # attention
                 input_att = tf.reshape(input_att, (-1, self.att_n))
 
                 # (natom x nei_type_i) x out_size
