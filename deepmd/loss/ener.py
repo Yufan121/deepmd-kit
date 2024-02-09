@@ -93,6 +93,8 @@ class EnerStdLoss (Loss) :
             atom_ener_coeff = tf.reshape(atom_ener_coeff, tf.shape(atom_ener))
             energy = tf.reduce_sum(atom_ener_coeff * atom_ener, 1)
         ener_diff = energy - energy_hat # TODO Yufan multiple the weight
+        ener_diff_reshape = tf.reshape(ener_diff, [-1])
+        ener_diff_reshape = tf.concat([ener_diff_reshape[:-36], ener_diff_reshape[-36:] * 20], axis=0) # scale the last 36 force by 20
         l2_ener_loss = tf.reduce_mean( tf.square(ener_diff), name='l2_'+suffix) # energy loss
 
         force_reshape = tf.reshape (force, [-1])
@@ -107,7 +109,13 @@ class EnerStdLoss (Loss) :
             diff_f_3 = tf.reshape(diff_f, [-1, 3])
             diff_f_3 = diff_f_3 / norm_f
             diff_f = tf.reshape(diff_f_3, [-1])
-        l2_force_loss = tf.reduce_mean(tf.square(diff_f), name = "l2_force_" + suffix) # force loss
+            
+        diff_f_reshape = tf.reshape(diff_f, [-1])
+        diff_f_reshape = tf.concat([diff_f_reshape[:-36*3], diff_f_reshape[-36*3:] * 20], axis=0) # scale the last 36 force by 20
+        l2_force_loss = tf.reduce_mean(tf.square(diff_f_reshape), name="l2_force_" + suffix) # force loss
+        
+        # l2_force_loss = tf.reduce_mean(tf.square(diff_f), name = "l2_force_" + suffix) # original force loss
+        
         l2_pref_force_loss = tf.reduce_mean(tf.multiply(tf.square(diff_f), atom_pref_reshape), name = "l2_pref_force_" + suffix)
 
         virial_reshape = tf.reshape (virial, [-1])
