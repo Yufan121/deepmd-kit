@@ -171,9 +171,23 @@ class EnerStdLoss(Loss):
             atom_ener_coeff = tf.reshape(atom_ener_coeff, tf.shape(atom_ener))
             energy = tf.reduce_sum(atom_ener_coeff * atom_ener, 1)
         if self.has_e:
-            l2_ener_loss = tf.reduce_mean(
-                tf.square(energy - energy_hat), name="l2_" + suffix
-            )
+            # Yufan: put extra weight on the last 7 energy components
+            ener_diff = energy - energy_hat # TODO Yufan multiple the weight
+            ener_diff_reshape = tf.reshape(ener_diff, [-1], name='ener_diff_reshape')
+            ener_diff_reshape = tf.concat([ener_diff_reshape[:-7], ener_diff_reshape[-7:] * 10], axis=0) # scale the last 7 force by 10
+            l2_ener_loss = tf.reduce_mean( tf.square(ener_diff), name='l2_'+suffix) # energy loss
+
+            print("*************************************************************************************************")
+            print("******************** Warning: the last 7 energy components are scaled by 10 ***************")
+            print("*************************************************************************************************")
+
+            # print shape of energy and energy_hat
+            print(f"energy shape: {energy.shape}")
+            print(f"energy_hat shape: {energy_hat.shape}")
+            
+            # l2_ener_loss = tf.reduce_mean(
+            #     tf.square(energy - energy_hat), name="l2_" + suffix
+            # )
 
         if self.has_f or self.has_pf or self.relative_f or self.has_gf:
             force_reshape = tf.reshape(force, [-1])
@@ -188,7 +202,21 @@ class EnerStdLoss(Loss):
             diff_f = tf.reshape(diff_f_3, [-1])
 
         if self.has_f:
-            l2_force_loss = tf.reduce_mean(tf.square(diff_f), name="l2_force_" + suffix)
+            # Yufan: put extra weight on the last 7 force components
+            diff_f_reshape = tf.reshape(diff_f, [-1], name="diff_f_reshape")
+            diff_f_reshape = tf.concat([diff_f_reshape[:-7*3], diff_f_reshape[-7*3:] * 10], axis=0) # scale the last 7 force by 10
+            l2_force_loss = tf.reduce_mean(tf.square(diff_f_reshape), name="l2_force_" + suffix) # force loss
+            
+            print("*************************************************************************************************")
+            print("******************** Warning: the last 7 energy components are scaled by 10 ***************")
+            print("*************************************************************************************************")
+
+            # print shape of force and force_hat
+            print(f"force shape: {force.shape}")
+            print(f"force_hat shape: {force_hat.shape}")
+            
+            
+            # l2_force_loss = tf.reduce_mean(tf.square(diff_f), name="l2_force_" + suffix)
 
         if self.has_pf:
             atom_pref_reshape = tf.reshape(atom_pref, [-1])
