@@ -189,7 +189,7 @@ def _do_work(jdata: Dict[str, Any], run_opt: RunOptions, is_compress: bool = Fal
     assert "training" in jdata
 
     # init the model
-    model = DPTrainer(jdata, run_opt=run_opt, is_compress=is_compress)
+    model = DPTrainer(jdata, run_opt=run_opt, is_compress=is_compress) # call dptrainier 
     rcut = model.model.get_rcut()
     type_map = model.model.get_type_map()
     if len(type_map) == 0:
@@ -324,7 +324,7 @@ def get_data(jdata: Dict[str, Any], rcut, type_map, modifier, multi_task_mode=Fa
         systems=systems,
         batch_size=batch_size,
         test_size=1,  # to satisfy the old api
-        shuffle_test=True,  # to satisfy the old api
+        shuffle_test=False,  # to satisfy the old api   # CHANGED BY YUFAN
         rcut=rcut,
         type_map=type_map,
         optional_type_map=optional_type_map,
@@ -332,6 +332,7 @@ def get_data(jdata: Dict[str, Any], rcut, type_map, modifier, multi_task_mode=Fa
         trn_all_set=True,  # sample from all sets
         sys_probs=sys_probs,
         auto_prob_style=auto_prob,
+        sort_atoms=False,                               # CHANGED BY YUFAN
     )
     data.add_dict(data_requirement)
 
