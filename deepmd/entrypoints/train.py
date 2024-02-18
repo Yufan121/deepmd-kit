@@ -336,6 +336,11 @@ def get_data(jdata: Dict[str, Any], rcut, type_map, modifier, multi_task_mode=Fa
     )
     data.add_dict(data_requirement)
 
+
+    print("*************************************************************************************************")
+    print("******************** Warning: shuffle_test_off, sort_atom_off ***************")
+    print("*************************************************************************************************")
+
     return data
 
 
