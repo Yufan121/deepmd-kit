@@ -223,11 +223,11 @@ class EnerStdLoss(Loss):
             tf.summary.text("diff_f_log_shape", diff_f_log_shape)
             
             
-            diff_f_reshape = tf.concat([diff_f_reshape[:-7*3], diff_f_reshape[-7*3:] * 10], axis=0) # scale the last 7 force by 10
+            diff_f_reshape = tf.concat([diff_f_reshape[:-7*3], diff_f_reshape[-7*3:] * 2], axis=0) # scale the last 7 force by 2
             l2_force_loss = tf.reduce_mean(tf.square(diff_f_reshape), name="l2_force_" + suffix) # force loss
             
             print("*************************************************************************************************")
-            print("******************** Warning: the last 7 energy components are scaled by 10 ***************")
+            print("******************** Warning: the last 7 energy components are scaled by 2 ***************")
             print("*************************************************************************************************")
 
             # print shape of force and force_hat
